@@ -2,4 +2,3 @@ bcrypt
 fastapi
 pymongo
 python-dotenv
-uvicorn

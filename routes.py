@@ -97,11 +97,7 @@ def get_user_data(request: Request, id: str):
         "watch_later": list(map(Binary.as_uuid, data["watch_later"]))
     }
 
-_put_responses = {
-    200: {
-        "model": Success,
-        "description": "The video was liked"
-    },
+_put_errors = {
     404: {
         "model": HTTPError,
         "description": "The specified user does not exist"
@@ -112,7 +108,15 @@ _put_responses = {
     }
 }
 
-@router.put("/{user_id}/like/{video_id}", responses = _put_responses)
+@router.put(
+    "/{user_id}/like/{video_id}", 
+    responses = {
+        200: {
+            "model": Success,
+            "description": "The video was liked/disliked"
+        },
+    } | _put_errors
+)
 def toggle_like(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
     user_id = _object_id(user_id)
     video_id = Binary.from_uuid(video_id)
@@ -130,7 +134,15 @@ def toggle_like(request: Request, user_id: str, video_id: UUID, update: ListUpda
         raise HTTPException(status_code = 404, detail = "Not found")
     return { "success": True }
 
-@router.put("/{user_id}/watch-later/{video_id}", responses = _put_responses)
+@router.put(
+    "/{user_id}/watch-later/{video_id}",
+    responses = {
+        200: {
+            "model": Success,
+            "description": "The video was added/removed from the \"watch later\" list"
+        },
+    } | _put_errors
+)
 def toggle_watch_later(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
     user_id = _object_id(user_id)
     video_id = Binary.from_uuid(video_id)
