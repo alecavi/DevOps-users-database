@@ -7,7 +7,9 @@ from uuid import UUID
 # This should ideally be transferred under HTTPS, since there _is_ a password.
 # However, HTTPS requires a domain name, and domain names are not free, nor can they be bought with
 # gcloud's trial credit.
-class RegisterBody(BaseModel):
+#
+# That, and it's going to be behind a firewall anyway, so at least it's not wholly insecure
+class UserAccessBody(BaseModel):
     name: str = Field(description = "Username")
     password: str = Field(description = "Password")
 
@@ -22,6 +24,9 @@ class RegisterBody(BaseModel):
         if len(v) < 8:
             raise ValidationError("Password must be at least 8 characters long")
         return v
+
+class UserAccessResponse(BaseModel):
+    id: str = Field(description = "The user's ID")
 
 class ListUpdate(str, Enum):
     add = "add"

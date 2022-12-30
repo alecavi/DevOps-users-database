@@ -5,7 +5,7 @@ from fastapi import APIRouter, Request, Response, HTTPException
 from typing import List
 from uuid import UUID
 
-from models import UserData, HTTPError, Success, ListUpdateBody, ListUpdate,RegisterBody 
+from models import UserData, HTTPError, Success, ListUpdateBody, ListUpdate, UserAccessBody, UserAccessResponse
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ def _object_id(id: str) -> ObjectId:
     "/register",
     responses = {
         200: {
-            "model": Success,
+            "model": UserAccessResponse,
             "description": "Registration successful"
         },
         409: {
@@ -28,24 +28,45 @@ def _object_id(id: str) -> ObjectId:
         }
     }
 )
-def register(request: Request, body: RegisterBody):
-    collection = request.app.database["users"]
+def register(request: Request, body: UserAccessBody):
+    collection = request.app.collection
     if collection.count_documents({ "name": body.name }):
         raise HTTPException(status_code = 409, detail = "The specified username already exists")
 
     salt = bcrypt.gensalt()
-    hash = bcrypt.hashpw(body.password.encode("utf-8"), salt)
-    collection.insert_one({
+    password = bcrypt.hashpw(body.password.encode("utf-8"), salt)
+    inserted = collection.insert_one({
         "name": body.name,
-        "password_salt": salt,
-        "password_hash": hash,
+        "password": password,
         "likes": [],
         "watch_later": [],
     })
+    return { "id": str(inserted.inserted_id) }
 
-    return { "success": True }
-
-
+@router.post(
+    "/check_login",
+    responses = {
+        200: {
+            "model": Success,
+            "description": "Login successful"
+        },
+        404: {
+            "model": HTTPError,
+            "description": "The specified username does not exist"
+        },
+        401: {
+            "model": HTTPError,
+            "description": "The specified username and password don't match"
+        }
+    }
+)
+def check_login(request: Request, body: UserAccessBody):
+    user = request.app.collection.find_one({ "name": body.name, })
+    if user is None:
+        raise HTTPException(status_code = 404, detail = "Not found")
+    if not bcrypt.checkpw(body.password.encode("utf-8"), user["password"]):
+        raise HTTPException(status_code = 401, detail = "Invalid username or password")
+    return { "id": str(user["_id"]) }
 
 @router.get(
     "/{id}", 
@@ -67,7 +88,7 @@ def register(request: Request, body: RegisterBody):
 def get_user_data(request: Request, id: str):
     id = _object_id(id)
 
-    data = request.app.database["users"].find_one({"_id": id})
+    data = request.app.collection.find_one({"_id": id})
     if data is None:
         raise HTTPException(status_code = 404, detail = "Not found")
 
@@ -92,7 +113,7 @@ _put_responses = {
 }
 
 @router.put("/{user_id}/like/{video_id}", responses = _put_responses)
-def like(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
+def toggle_like(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
     user_id = _object_id(user_id)
     video_id = Binary.from_uuid(video_id)
 
@@ -101,7 +122,7 @@ def like(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody)
     elif update.update == ListUpdate.remove:
         verb = "$pull"
 
-    result = request.app.database["users"].update_one(
+    result = request.app.collection.update_one(
         { "_id": user_id, },
         { verb: { "likes": video_id } }
     )
@@ -110,7 +131,7 @@ def like(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody)
     return { "success": True }
 
 @router.put("/{user_id}/watch-later/{video_id}", responses = _put_responses)
-def watch_later(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
+def toggle_watch_later(request: Request, user_id: str, video_id: UUID, update: ListUpdateBody):
     user_id = _object_id(user_id)
     video_id = Binary.from_uuid(video_id)
 
@@ -119,7 +140,7 @@ def watch_later(request: Request, user_id: str, video_id: UUID, update: ListUpda
     elif update.update == ListUpdate.remove:
         verb = "$pull"
 
-    result = request.app.database["users"].update_one(
+    result = request.app.collection.update_one(
         {"_id": user_id},
         { verb: { "watch_later": video_id } }
     )
