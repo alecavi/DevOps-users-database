@@ -2,7 +2,7 @@ FROM mongo
 FROM python:3.9
 WORKDIR /home/
 COPY requirements.txt .
-COPY *.py .
+COPY *.py ./
 COPY .env .
 RUN pip install --upgrade pip
 RUN pip install -r /home/requirements.txt
