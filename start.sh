@@ -1,3 +1,2 @@
-#!/bin/bash
-docker build -t users-database .
-docker run -dp 80:80 --name users-database users-database
+docker start user-database
+docker start mongo
